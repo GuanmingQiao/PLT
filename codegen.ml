@@ -123,9 +123,7 @@ let translate (globals, functions) =
 
   let array_retrieve_float_t = L.function_type float_t [|void_p ; str_t|] in
   let array_retrieve_float_func = L.declare_function "array_retrieve_float" array_retrieve_float_t the_module in
-  *)
-  
-
+  *)   
   
   let function_decls =
     let function_decl m fdecl =
@@ -156,6 +154,8 @@ let translate (globals, functions) =
     and int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
     (* and string_format_str = L.build_global_stringptr "%s\n" "fmt2" builder *) 
     and float_format_str = L.build_global_stringptr "%f\n" "fmt" builder
+	and true_format_str = L.build_global_stringptr "true\n" "fmt" builder
+	and false_format_str = L.build_global_stringptr "false\n" "fmt" builder
     in
 
 
@@ -163,9 +163,7 @@ let translate (globals, functions) =
         let str = L.build_global_stringptr e "str" builder in
         let null = L.const_int i32_t 0 in
     L.build_in_bounds_gep str [| null |] "str" builder in
-
-    (* This is where GM left at Fri. 8:05 PM *)
-
+	
 	
 	(* Construct code for an expression used for assignment; return its value *)
     let rec lexpr builder g_map l_map = function
@@ -226,7 +224,7 @@ let translate (globals, functions) =
 	  let e' = expr builder g_map l_map e in
 	  (match op with
 	  | A.Neg                  -> L.build_neg
-          | A.Not                  -> L.build_not) e' "tmp" builder
+      | A.Not                  -> L.build_not) e' "tmp" builder
 
       (* assume only float need semantic checking *)
 	  (*
@@ -251,17 +249,22 @@ let translate (globals, functions) =
 	  
       (*| Call ("prints", [_]) -> L.build_call prints_func [| str_format_str |] "prints" builder*)
       | A.Call ("prints", [e]) -> L.build_call printf_func [| char_format_str; (expr builder g_map l_map e)|] "printf" builder
-      | A.Call ("print", [e]) | A.Call ("printb", [e]) ->
-	  L.build_call printf_func [| int_format_str ; (expr builder g_map l_map e) |]
-	    "printf" builder
+      | A.Call ("print", [e]) | A.Call ("printb", [e]) -> 
+      let e' = expr builder g_map l_map e in
+	  if L.type_of e' = i32_t then 
+  		L.build_call printf_func [| int_format_str ; e' |] "printf" builder
+	  else
+		let isBool = L.const_select e' (L.const_null i32_t) (L.const_int i32_t 1) in 
+		if L.is_null isBool then L.build_call printf_func [| true_format_str; |] "printf" builder
+		else L.build_call printf_func [| false_format_str; |] "printf" builder
       | A.Call ("printbig", [e]) ->
 	  L.build_call printbig_func [| (expr builder g_map l_map e) |] "printbig" builder
       | A.Call ("printf", [e]) -> 
 	  L.build_call printf_func [| float_format_str ; (expr builder g_map l_map e) |]
 	    "printf" builder
       | A.Call ("strlen", [e]) ->
-    L.build_call strlen_func [|expr builder g_map l_map e|] 
-    "strlen" builder
+        L.build_call strlen_func [|expr builder g_map l_map e|] 
+        "strlen" builder
     (*  | A.Call ("array_add_string", [a;b;c]) ->
     L.build_call array_add_string_func [|(expr builder g_map l_map a) ; (expr builder g_map l_map b) ; (expr builder g_map l_map c)|] 
     "array_add_string" builder
